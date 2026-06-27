@@ -1,0 +1,74 @@
+name: Stock Notify
+
+on:
+  workflow_dispatch:
+    inputs:
+      market:
+        description: "市場 tw / us"
+        required: true
+        default: "tw"
+        type: choice
+        options: ["tw", "us"]
+      type:
+        description: "時段 open / mid / close"
+        required: true
+        default: "open"
+        type: choice
+        options: ["open", "mid", "close"]
+  schedule:
+    # ── 🇹🇼 台股（台北 UTC+8，cron 提前 3 分）──
+    - cron: "2 1 * * 1-5"     # open  09:05 台北
+    - cron: "27 3 * * 1-5"    # mid   11:30 台北
+    - cron: "32 5 * * 1-5"    # close 13:35 台北
+    # ── 🇺🇸 美股（夏令 EDT + 冬令 EST 雙 cron，Python 篩正確季節）──
+    - cron: "32 13 * * 1-5"   # open  09:35 ET（EDT）
+    - cron: "32 14 * * 1-5"   # open  09:35 ET（EST）
+    - cron: "57 15 * * 1-5"   # mid   12:00 ET（EDT）
+    - cron: "57 16 * * 1-5"   # mid   12:00 ET（EST）
+    - cron: "2 20 * * 1-5"    # close 16:05 ET（EDT）
+    - cron: "2 21 * * 1-5"    # close 16:05 ET（EST）
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stock-notify
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: pip install -r requirements.txt
+
+      - name: Run notify
+        env:
+          TRIGGER: ${{ github.event_name }}
+          MARKET: ${{ github.event.inputs.market }}
+          TYPE: ${{ github.event.inputs.type }}
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT: ${{ secrets.TG_CHAT }}
+          LINE_TOKEN: ${{ secrets.LINE_TOKEN }}
+          LINE_ID: ${{ secrets.LINE_ID }}
+        run: python main.py
+
+      - name: Persist idempotency state
+        if: github.event_name == 'schedule'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add state/sent.json 2>/dev/null || true
+          # exit-128 guard：無變更就不 commit
+          if git diff --staged --quiet; then
+            echo "No state change, nothing to commit."
+          else
+            git commit -m "chore(state): update idempotency [skip ci]"
+            git push || echo "push skipped (non-fatal)"
+          fi
