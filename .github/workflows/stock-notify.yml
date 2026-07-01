@@ -1,20 +1,13 @@
 name: Stock Notify
-
 on:
   workflow_dispatch:
     inputs:
       market:
-        description: "市場 tw / us"
-        required: true
+        description: "tw / us"
         default: "tw"
-        type: choice
-        options: ["tw", "us"]
       type:
-        description: "時段 open / mid / close"
-        required: true
+        description: "open / mid / close"
         default: "open"
-        type: choice
-        options: ["open", "mid", "close"]
   schedule:
     - cron: "2 1 * * 1-5"
     - cron: "27 3 * * 1-5"
@@ -25,32 +18,22 @@ on:
     - cron: "57 16 * * 1-5"
     - cron: "2 20 * * 1-5"
     - cron: "2 21 * * 1-5"
-
-permissions:
-  contents: write
-
-concurrency:
-  group: stock-notify
-  cancel-in-progress: false
-
 jobs:
   notify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
-      - name: Install deps
-        run: pip install -r requirements.txt
-
-      - name: Run notify
+      - run: pip install -r requirements.txt
+      - run: python main.py
         env:
           TRIGGER: ${{ github.event_name }}
           CRON: ${{ github.event.schedule }}
           MARKET: ${{ github.event.inputs.market }}
           TYPE: ${{ github.event.inputs.type }}
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
-          TG_CHAT: ${{ secrets
+          TG_CHAT: ${{ secrets.TG_CHAT }}
+          LINE_TOKEN: ${{ secrets.LINE_TOKEN }}
+          LINE_ID: ${{ secrets.LINE_ID }}
