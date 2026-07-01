@@ -32,6 +32,3 @@ US_SYMBOLS = [
 FETCH_RETRIES = 3
 FETCH_TIMEOUT = 10  # 秒（per-call，避免單支卡死整批）
 HISTORY_PERIOD = "5d"
-
-# 容錯窗（分鐘）：cron 提前 3 分觸發，可容忍 GitHub 延遲 6 分鐘內
-TOLERANCE_MINUTES = 3
