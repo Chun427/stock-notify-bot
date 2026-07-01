@@ -19,16 +19,17 @@ log = get_logger("main")
 
 
 def run() -> None:
-    trigger = os.getenv("TRIGGER", "schedule")
-    manual = trigger == "workflow_dispatch"
+    event = os.getenv("TRIGGER", "schedule")  # = github.event_name
+    manual = event == "workflow_dispatch"
 
     decision = decide(
-        manual=manual,
+        event=event,
         market=os.getenv("MARKET"),
         slot=os.getenv("TYPE"),
+        season=os.getenv("SEASON"),
     )
     if decision is None:
-        log.info("無命中時段（off-time / 非交易日 / 錯誤季節）→ 跳過")
+        log.info("無可執行 slot（參數無效 / 非交易日 / 季節不符）→ 跳過")
         return
 
     market, slot, sched_taipei, silent = decision
