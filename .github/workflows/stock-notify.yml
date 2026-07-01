@@ -20,7 +20,7 @@ on:
     - cron: "2 1 * * 1-5"     # open  09:05 台北
     - cron: "27 3 * * 1-5"    # mid   11:30 台北
     - cron: "32 5 * * 1-5"    # close 13:35 台北
-    # ── 🇺🇸 美股（夏令 EDT + 冬令 EST 雙 cron，Python 篩正確季節）──
+    # ── 🇺🇸 美股（夏令 EDT + 冬令 EST 雙 cron，Python 依 DST 篩季）──
     - cron: "32 13 * * 1-5"   # open  09:35 ET（EDT）
     - cron: "32 14 * * 1-5"   # open  09:35 ET（EST）
     - cron: "57 15 * * 1-5"   # mid   12:00 ET（EDT）
@@ -48,27 +48,22 @@ jobs:
       - name: Install deps
         run: pip install -r requirements.txt
 
-      - name: Run notify
+      # 事件驅動：把觸發的 cron 直接對應成 MARKET / TYPE / SEASON
+      # （GitHub 不支援 per-cron env，故用 github.event.schedule 對照）
+      - name: Resolve slot
         env:
-          TRIGGER: ${{ github.event_name }}
-          MARKET: ${{ github.event.inputs.market }}
-          TYPE: ${{ github.event.inputs.type }}
-          TG_TOKEN: ${{ secrets.TG_TOKEN }}
-          TG_CHAT: ${{ secrets.TG_CHAT }}
-          LINE_TOKEN: ${{ secrets.LINE_TOKEN }}
-          LINE_ID: ${{ secrets.LINE_ID }}
-        run: python main.py
-
-      - name: Persist idempotency state
-        if: github.event_name == 'schedule'
+          EVENT: ${{ github.event_name }}
+          CRON: ${{ github.event.schedule }}
+          IN_MARKET: ${{ github.event.inputs.market }}
+          IN_TYPE: ${{ github.event.inputs.type }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add state/sent.json 2>/dev/null || true
-          # exit-128 guard：無變更就不 commit
-          if git diff --staged --quiet; then
-            echo "No state change, nothing to commit."
+          M=""; T=""; S=""
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            M="$IN_MARKET"; T="$IN_TYPE"
           else
-            git commit -m "chore(state): update idempotency [skip ci]"
-            git push || echo "push skipped (non-fatal)"
-          fi
+            case "$CRON" in
+              "2 1 * * 1-5")   M=tw; T=open ;;
+              "27 3 * * 1-5")  M=tw; T=mid ;;
+              "32 5 * * 1-5")  M=tw; T=close ;;
+              "32 13 * * 1-5") M=us; T=open;  S=EDT ;;
+              "32 14 * * 1-5") M=us; T=open;  S=EST
