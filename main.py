@@ -7,6 +7,7 @@
 # Fail-safe：任何例外都被攔截，Actions 永不崩潰（exit 0）。
 import os
 
+from config import SCHEDULE_CRON_MAP
 from core.decision import decide
 from notify.formatter import format_message
 from notify.line_notifier import send_line
@@ -22,12 +23,15 @@ def run() -> None:
     event = os.getenv("TRIGGER", "schedule")  # = github.event_name
     manual = event == "workflow_dispatch"
 
-    decision = decide(
-        event=event,
-        market=os.getenv("MARKET"),
-        slot=os.getenv("TYPE"),
-        season=os.getenv("SEASON"),
-    )
+    if manual:
+        market, slot, season = os.getenv("MARKET") or None, os.getenv("TYPE") or None, None
+    else:
+        # 事件驅動：github.event.schedule（cron 字串）→ (market, slot, season)
+        market, slot, season = SCHEDULE_CRON_MAP.get(
+            os.getenv("CRON", ""), (None, None, None)
+        )
+
+    decision = decide(event=event, market=market, slot=slot, season=season)
     if decision is None:
         log.info("無可執行 slot（參數無效 / 非交易日 / 季節不符）→ 跳過")
         return
