@@ -16,17 +16,15 @@ on:
         type: choice
         options: ["open", "mid", "close"]
   schedule:
-    # ── 🇹🇼 台股（台北 UTC+8，cron 提前 3 分）──
-    - cron: "2 1 * * 1-5"     # open  09:05 台北
-    - cron: "27 3 * * 1-5"    # mid   11:30 台北
-    - cron: "32 5 * * 1-5"    # close 13:35 台北
-    # ── 🇺🇸 美股（夏令 EDT + 冬令 EST 雙 cron，Python 依 DST 篩季）──
-    - cron: "32 13 * * 1-5"   # open  09:35 ET（EDT）
-    - cron: "32 14 * * 1-5"   # open  09:35 ET（EST）
-    - cron: "57 15 * * 1-5"   # mid   12:00 ET（EDT）
-    - cron: "57 16 * * 1-5"   # mid   12:00 ET（EST）
-    - cron: "2 20 * * 1-5"    # close 16:05 ET（EDT）
-    - cron: "2 21 * * 1-5"    # close 16:05 ET（EST）
+    - cron: "2 1 * * 1-5"
+    - cron: "27 3 * * 1-5"
+    - cron: "32 5 * * 1-5"
+    - cron: "32 13 * * 1-5"
+    - cron: "32 14 * * 1-5"
+    - cron: "57 15 * * 1-5"
+    - cron: "57 16 * * 1-5"
+    - cron: "2 20 * * 1-5"
+    - cron: "2 21 * * 1-5"
 
 permissions:
   contents: write
@@ -48,22 +46,11 @@ jobs:
       - name: Install deps
         run: pip install -r requirements.txt
 
-      # 事件驅動：把觸發的 cron 直接對應成 MARKET / TYPE / SEASON
-      # （GitHub 不支援 per-cron env，故用 github.event.schedule 對照）
-      - name: Resolve slot
+      - name: Run notify
         env:
-          EVENT: ${{ github.event_name }}
+          TRIGGER: ${{ github.event_name }}
           CRON: ${{ github.event.schedule }}
-          IN_MARKET: ${{ github.event.inputs.market }}
-          IN_TYPE: ${{ github.event.inputs.type }}
-        run: |
-          M=""; T=""; S=""
-          if [ "$EVENT" = "workflow_dispatch" ]; then
-            M="$IN_MARKET"; T="$IN_TYPE"
-          else
-            case "$CRON" in
-              "2 1 * * 1-5")   M=tw; T=open ;;
-              "27 3 * * 1-5")  M=tw; T=mid ;;
-              "32 5 * * 1-5")  M=tw; T=close ;;
-              "32 13 * * 1-5") M=us; T=open;  S=EDT ;;
-              "32 14 * * 1-5") M=us; T=open;  S=EST
+          MARKET: ${{ github.event.inputs.market }}
+          TYPE: ${{ github.event.inputs.type }}
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT: ${{ secrets
