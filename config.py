@@ -32,3 +32,16 @@ US_SYMBOLS = [
 FETCH_RETRIES = 3
 FETCH_TIMEOUT = 10  # 秒（per-call，避免單支卡死整批）
 HISTORY_PERIOD = "5d"
+
+# 排程 cron → (market, slot, season)：事件驅動注入（season 僅美股雙季 cron 需要）
+SCHEDULE_CRON_MAP = {
+    "2 1 * * 1-5": ("tw", "open", None),
+    "27 3 * * 1-5": ("tw", "mid", None),
+    "32 5 * * 1-5": ("tw", "close", None),
+    "32 13 * * 1-5": ("us", "open", "EDT"),
+    "32 14 * * 1-5": ("us", "open", "EST"),
+    "57 15 * * 1-5": ("us", "mid", "EDT"),
+    "57 16 * * 1-5": ("us", "mid", "EST"),
+    "2 20 * * 1-5": ("us", "close", "EDT"),
+    "2 21 * * 1-5": ("us", "close", "EST"),
+}
