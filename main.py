@@ -1,8 +1,9 @@
 # main.py — orchestration 入口（串接各層，不含決策細節）
 #
-# 模式：
-#   cron            → 依時間真相 + 容錯窗判斷該推哪個市場/時段
-#   workflow_dispatch → 依 MARKET / TYPE 直接補播（跳過時間檢查、跳過去重）
+# 模式（皆事件驅動，不做時間窗猜測）：
+#   repository_dispatch → 依 github.event.action（如 us_open）注入 market/slot（外部 GAS 準時觸發）
+#   schedule            → 依 github.event.schedule（cron 字串）注入 slot（GitHub cron 備援）
+#   workflow_dispatch   → 依 MARKET / TYPE 直接補播（跳過去重）
 #
 # Fail-safe：任何例外都被攔截，Actions 永不崩潰（exit 0）。
 import os
@@ -25,6 +26,16 @@ def run() -> None:
 
     if manual:
         market, slot, season = os.getenv("MARKET") or None, os.getenv("TYPE") or None, None
+    elif event == "repository_dispatch":
+        # 外部 GAS 準時觸發：github.event.action（如 "us_open"）→ market/slot
+        VALID_ACTIONS = {"tw_open", "tw_mid", "tw_close", "us_open", "us_mid", "us_close"}
+        action = (os.getenv("ACTION") or "").strip()
+        if action not in VALID_ACTIONS:
+            log.warning("未知 repository_dispatch ACTION=%r → 跳過", action)
+            return
+        market, slot = action.split("_", 1)
+        season = None
+        log.info("repository_dispatch action=%s → market=%s slot=%s", action, market, slot)
     else:
         # 事件驅動：github.event.schedule（cron 字串）→ (market, slot, season)
         market, slot, season = SCHEDULE_CRON_MAP.get(
