@@ -2,9 +2,26 @@
 
 > 透過 GitHub Actions 定時抓取台股 / 美股即時報價，自動推播到 Telegram Bot 與 LINE。
 
+## 目錄
+
+- [功能特色](#功能特色)
+- [標的清單（契約 · 凍結）](#標的清單契約--凍結)
+- [自動推播排程](#自動推播排程)
+- [系統運作流程](#系統運作流程)
+- [推播訊息範例](#推播訊息範例)
+- [推播格式契約（凍結）](#推播格式契約凍結)
+- [專案結構](#專案結構)
+- [快速開始](#快速開始)
+- [取得推播憑證](#取得推播憑證)
+- [穩定性機制](#穩定性機制)
+- [Fail-safe 機制](#fail-safe-機制)
+- [已知限制](#已知限制)
+- [免責聲明](#免責聲明)
+
 -----
 
-## ✨ 功能特色
+
+## 功能特色
 
 - 🇹🇼 **台股報價**：加權指數、元大台灣50、富邦台50、台積電
 - 🇺🇸 **美股報價**：S&P500、VOO、QQQM、SMH、Apple、輝達、Google、TSMC ADR、SpaceX
@@ -12,13 +29,13 @@
 - 🔕 **深夜靜音**：美股盤中、收盤自動靜音，不打擾睡眠
 - 🌎 **DST 自動對齊**：美股以美東時間判斷，夏令／冬令自動切換，不會抓錯日期
 - 🛡️ **固定標的**：台股固定 4 檔、美股固定 9 檔，單支抓取失敗仍保留位置，數量與順序永遠固定
-- ⏱️ **±3 分鐘容錯**：GitHub Actions 延遲 6 分鐘內仍可正常推播
+- ⚡ **事件驅動 · 延遲免疫**：每條 cron 直接對應市場／時段，GitHub 延遲多久觸發都照推，不再有時間窗漏推
 - 🛡️ **Fail-safe 設計**：任何錯誤不會讓 Actions 崩潰
 - ⚙️ **手動補播**：`workflow_dispatch` 可隨時手動觸發指定市場與時段
 
 -----
 
-## 📌 標的清單（契約 · 凍結）
+## 標的清單（契約 · 凍結）
 
 > ⚠️ 以下**顯示名稱**與**順序**為凍結契約，是推播輸出（formatter）與 `config.py` 的唯一真相來源。
 > 不可修改、不可重新排序、不可增刪、不可語意翻譯（例：Google ↔ 谷歌）。
@@ -51,7 +68,7 @@
 
 -----
 
-## 📅 自動推播排程
+## 自動推播排程
 
 ### 🇹🇼 台股（週一 ～ 週五，台北時間）
 
@@ -72,38 +89,37 @@
 
 > 💡 美股推播時間以**美東時間**固定，台北對應時間會隨美國日光節約自動變動，確保永遠在美股實際交易時段推播。
 > 
-> ⚠️ GitHub Actions cron 通常有數分鐘延遲，本系統內建 ±3 分鐘容錯（cron 提前 3 分觸發，可容忍 6 分鐘內延遲）。
+> ⚠️ GitHub Actions cron 常有延遲。本系統為**事件驅動**：每條 cron 直接對應（市場／時段／季節），觸發後即注入該 slot 推播，**延遲多久都照推**（不再依賴時間窗，無漏推）。表中時間為推播訊息顯示的固定 slot 時刻。
 
 -----
 
-## 🔄 系統運作流程
+## 系統運作流程
 
 ```
-GitHub Actions cron 觸發（夏令 + 冬令各一組）
+GitHub Actions 觸發（schedule 雙季 cron，或手動 workflow_dispatch）
         ↓
-main.py（orchestration 入口）
+main.py（orchestration 入口）讀取 TRIGGER / CRON / MARKET / TYPE
         ↓
-判斷觸發模式：cron 或 manual
+判斷觸發模式：
+  schedule → 依 CRON 字串查 config.SCHEDULE_CRON_MAP → 注入 (market, slot, season)
+  manual   → 依 MARKET / TYPE 直接注入（顯示當下台北時間）
         ↓
-cron：scheduler/calendar 提供時間真相（市場時區 / DST / 交易日）
-      → core/decision 依容錯窗（±3 分鐘）判斷該不該推
-      → 錯誤季節的 cron 自動跳過
-        ↓
-state/idempotency 檢查是否已推播（防重複）
+core/decision.decide()（事件驅動，不做時間窗判斷）
+  → 非交易日（週末）→ 跳過
+  → 美股雙季 cron：以「當前 DST 實際狀態」比對，非當季那條 → 跳過（延遲免疫）
         ↓
 抓取股價（Yahoo Finance，period=5d，自動跳過 NaN K 棒）
         ↓
 組合固定格式推播訊息（固定標的，失敗顯示 N/A）
         ↓
-發送 Telegram（若有設定）
-發送 LINE（若有設定）
-        ↓
-推播成功後 state/idempotency 標記已推
+發送 Telegram（若有設定）／發送 LINE（若有設定）
 ```
+
+> 防重複：每個時段「同季節僅一條 cron 會命中」（DST 消歧），故不需依賴跨執行的狀態持久化即不會重複推播。
 
 -----
 
-## 📤 推播訊息範例
+## 推播訊息範例
 
 **🇹🇼 台股**
 
@@ -135,7 +151,7 @@ state/idempotency 檢查是否已推播（防重複）
 
 -----
 
-## 📤 推播格式契約（凍結）
+## 推播格式契約（凍結）
 
 > ⚠️ 以下為推播輸出的**逐字凍結契約**，`formatter.py` 只能套用、不可變動。
 > 特殊字元：全形空格 `U+3000`、全形括號 `（）`、中點 `・`、全形冒號 `：`。
@@ -178,7 +194,7 @@ state/idempotency 檢查是否已推播（防重複）
 
 -----
 
-## 📁 專案結構
+## 專案結構
 
 ```
 .
@@ -198,7 +214,7 @@ state/idempotency 檢查是否已推播（防重複）
 │   ├── telegram_notifier.py   # 發送 Telegram
 │   └── line_notifier.py       # 發送 LINE
 ├── state/
-│   └── idempotency.py         # 防重複推播（已推 → SKIP）
+│   └── idempotency.py         # 單次執行內防重入（persist 已移除，跨 run 不持久化）
 ├── utils/
 │   └── logger.py              # 統一 log 格式
 └── .github/
@@ -208,7 +224,7 @@ state/idempotency 檢查是否已推播（防重複）
 
 -----
 
-## 🚀 快速開始
+## 快速開始
 
 ### 1. Fork / Clone 此 Repository
 
@@ -244,8 +260,8 @@ pip install yfinance requests
 ### 4. 本機測試
 
 ```bash
-# cron 模式（會依市場時區檢查時間）
-python main.py
+# 排程模式（事件驅動：用 CRON 對應的字串注入 slot；需與 SCHEDULE_CRON_MAP 一致）
+CRON="2 1 * * 1-5" python main.py    # 例：台股開盤
 
 # 手動模式（跳過時間檢查，直接推播）
 TRIGGER=workflow_dispatch MARKET=tw TYPE=open  python main.py
@@ -264,7 +280,7 @@ GitHub → **Actions → Stock Notify → Run workflow**
 
 -----
 
-## 🔑 取得推播憑證
+## 取得推播憑證
 
 ### Telegram
 
@@ -284,19 +300,19 @@ https://api.telegram.org/bot<TOKEN>/getUpdates
 
 -----
 
-## 🛡️ 穩定性機制
+## 穩定性機制
 
 |機制       |說明                                 |
 |---------|-----------------------------------|
-|美股 DST 對齊|以美東時間判斷，夏令／冬令雙 cron，Python 自動篩選正確季節|
-|±3 分鐘容錯  |cron 提前觸發，可容忍 GitHub 延遲 6 分鐘內      |
+|事件驅動 · 延遲免疫|cron 字串直接注入市場／時段，觸發後即推，GitHub 延遲多久都不漏推（無時間窗）|
+|美股 DST 對齊|以美東時間判斷，夏令／冬令雙 cron，Python 依當前 DST 實際狀態篩選正確季節|
 |固定標的     |台股 4 檔／美股 9 檔，單支抓取失敗保留位置顯示 N/A，數量與順序永遠固定|
 |NaN 過濾   |開盤前資料未生成時自動取最近有效收盤，不會顯示 nan        |
-|防重複      |idempotency 標記 + 同季節每時段僅一組 cron 命中，不會重複推播|
+|防重複      |同季節每時段僅一條 cron 命中（DST 消歧），故不會重複推播|
 
 -----
 
-## 🛡️ Fail-safe 機制
+## Fail-safe 機制
 
 |錯誤情境         |處理方式          |Actions 是否崩潰|
 |-------------|--------------|------------|
@@ -305,21 +321,21 @@ https://api.telegram.org/bot<TOKEN>/getUpdates
 |Telegram 發送失敗|log + continue|❌ 不崩潰       |
 |LINE 發送失敗    |log + continue|❌ 不崩潰       |
 |Secrets 未設定  |跳過對應管道        |❌ 不崩潰       |
-|時間不符         |跳過推播          |❌ 不崩潰       |
-|錯誤季節 cron    |自動跳過          |❌ 不崩潰       |
+|非交易日（週末）     |跳過推播          |❌ 不崩潰       |
+|非當季 cron（DST）|自動跳過          |❌ 不崩潰       |
 
 -----
 
-## ⚠️ 已知限制
+## 已知限制
 
-- **GitHub Actions cron 延遲**：免費版 cron 不保證準時，延遲超過 6 分鐘的單次推播會略過（屬平台限制，非程式問題）。
+- **GitHub Actions cron 觸發層**：免費版 cron 不保證準時，甚至可能延遲數小時或漏觸發（屬平台限制，非程式問題）。本系統為事件驅動，**一旦觸發即推、延遲多久都不漏**；但「有沒有被觸發」仍取決於 GitHub 排程層，若需準時可改用外部排程器打 `repository_dispatch` / 手動補播。
 - **交易日僅判斷週一～週五**：未含台股／美股國定假日，休市日仍可能觸發（抓不到資料時顯示 N/A）。
 - **yfinance per-call timeout**：以參數方式傳入，極端情況下不保證硬性中斷。
 - 資料來源為 Yahoo Finance，可能有數分鐘延遲。
 
 -----
 
-## ⚠️ 免責聲明
+## 免責聲明
 
 本工具僅提供即時行情資訊，**不構成任何投資建議**。
 資料來源為 Yahoo Finance，可能有延遲，請以官方交易所資料為準。
