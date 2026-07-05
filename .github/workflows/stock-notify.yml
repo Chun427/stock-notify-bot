@@ -1,4 +1,7 @@
 name: Stock Notify
+# 觸發：repository_dispatch = 唯一正式入口（外部 GAS 準時觸發）
+# schedule 已停用（避免與 GAS 重複推播）；9 條 cron 見 config.SCHEDULE_CRON_MAP，
+# 需臨時恢復 GitHub cron 備援時，貼回 schedule: 區塊即可。
 on:
   workflow_dispatch:
     inputs:
@@ -10,16 +13,9 @@ on:
         default: "open"
   repository_dispatch:
     types: [tw_open, tw_mid, tw_close, us_open, us_mid, us_close]
-  schedule:
-    - cron: "2 1 * * 1-5"
-    - cron: "27 3 * * 1-5"
-    - cron: "32 5 * * 1-5"
-    - cron: "32 13 * * 1-5"
-    - cron: "32 14 * * 1-5"
-    - cron: "57 15 * * 1-5"
-    - cron: "57 16 * * 1-5"
-    - cron: "2 20 * * 1-5"
-    - cron: "2 21 * * 1-5"
+concurrency:
+  group: stock-notify
+  cancel-in-progress: false
 jobs:
   notify:
     runs-on: ubuntu-latest
