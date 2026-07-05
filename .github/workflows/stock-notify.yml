@@ -8,6 +8,8 @@ on:
       type:
         description: "open / mid / close"
         default: "open"
+  repository_dispatch:
+    types: [tw_open, tw_mid, tw_close, us_open, us_mid, us_close]
   schedule:
     - cron: "2 1 * * 1-5"
     - cron: "27 3 * * 1-5"
@@ -30,6 +32,7 @@ jobs:
       - run: python main.py
         env:
           TRIGGER: ${{ github.event_name }}
+          ACTION: ${{ github.event.action }}
           CRON: ${{ github.event.schedule }}
           MARKET: ${{ github.event.inputs.market }}
           TYPE: ${{ github.event.inputs.type }}
