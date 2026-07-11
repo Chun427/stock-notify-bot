@@ -1,6 +1,8 @@
 # 📲 股票推播機器人 · stock-notify-bot
 
-> 由外部 Google Apps Script 準時觸發 GitHub Actions，定時抓取台股／美股即時報價，自動推播到 Telegram Bot 與 LINE。
+> 一個自動化的**股市行情推播機器人**：在台股與美股的每個交易時段（開盤／盤中／收盤），
+> 自動抓取關注標的的即時報價，整理成固定格式推送到你的 **Telegram 與 LINE**——
+> 不用盯盤，也能準時掌握行情。
 
 ## 目錄
 
@@ -17,6 +19,7 @@
 - [穩定性機制](#穩定性機制)
 - [Fail-safe 機制](#fail-safe-機制)
 - [已知限制](#已知限制)
+- [Release Notes](#release-notes)
 - [免責聲明](#免責聲明)
 
 -----
@@ -277,6 +280,26 @@ GitHub → **Actions → Stock Notify → Run workflow**，選市場（tw / us�
 - **GitHub Actions cron（備援）**：免費版 cron 不保證準時、可能漏觸發，僅作為 GAS 失效時的備援。
 - **交易日僅判斷週一～週五**：未含國定假日，休市日若被觸發會因抓不到資料顯示 N/A。
 - 資料來源為 Yahoo Finance，可能有數分鐘延遲。
+
+-----
+
+## Release Notes
+
+### v2.1 Hardened Trigger
+
+**Added**
+- Google Apps Script 改為 Script Properties 管理 GitHub PAT（不硬編碼）
+- PAT 每次 dispatch 即時重新讀取（避免快取舊值）
+- repository_dispatch HTTP Retry（5s / 15s）
+- scheduler_logs 保留最近 20 次執行紀錄（`showLogs()` 可查）
+- main.py 新增 `[DISPATCH]` runtime log
+- Trigger Timezone 明確指定（台股 Asia/Taipei、美股 America/New_York）
+- 美股 DST 由時區自動處理
+
+**No Breaking Changes**
+
+以下模組完全未修改：`decision.py`、`formatter.py`、`quote_service.py`、`config.py 判斷邏輯`。
+因此推播內容、格式、股票排序、判斷邏輯全部維持原契約。本次更新僅提升穩定性、可觀測性（Observability）與維護性（Maintainability）。
 
 -----
 
