@@ -6,6 +6,7 @@
 #   workflow_dispatch   → 依 MARKET / TYPE 直接補播（跳過去重）
 #
 # Fail-safe：任何例外都被攔截，Actions 永不崩潰（exit 0）。
+import datetime
 import os
 
 from config import SCHEDULE_CRON_MAP
@@ -23,6 +24,12 @@ log = get_logger("main")
 def run() -> None:
     event = os.getenv("TRIGGER", "schedule")  # = github.event_name
     manual = event == "workflow_dispatch"
+
+    log.info(
+        "[DISPATCH] event=%s action=%s received_at=%s",
+        event, os.getenv("ACTION", ""),
+        datetime.datetime.now().isoformat(timespec="seconds"),
+    )
 
     if manual:
         market, slot, season = os.getenv("MARKET") or None, os.getenv("TYPE") or None, None
