@@ -1,4 +1,27 @@
 /**
+ * ⚠️⚠️⚠️ 警告：本檔尚未經線上驗證，嚴禁直接貼入 GAS 編輯器 ⚠️⚠️⚠️
+ *
+ * 本檔是依 README 規格從零重寫的版本，從未在真實 GAS 環境執行過一次。
+ * 線上目前實際運作的 GAS 專案，已經穩定跑了兩週以上（每個 slot 每天精確
+ * 觸發 1 次，見對話中的 Actions run 稽核），版控應該記錄「實際運行的那一份」，
+ * 不是這份沒跑過的重寫版——這份檔案目前只是佔位/草稿，方向尚未校正。
+ *
+ * 具體風險：本檔的 setupTriggers() 只會刪除「本檔自己命名」的 handler
+ * （triggerTwOpen / triggerTwMid / triggerTwClose / triggerUsOpen /
+ * triggerUsMid / triggerUsClose）。如果線上實際的 GAS 專案用的是不同的
+ * 函式名稱，直接貼上本檔並執行 setupTriggers()：
+ *   - 不會刪除線上原本的 6 個 trigger
+ *   - 會另外新增本檔的 6 個 trigger
+ *   - 結果變成 12 個 trigger 同時存在，每個 slot 每天觸發 2 次
+ *   - repository_dispatch 變成每 slot 送 2 次、Telegram/LINE 各推 2 則
+ *   - LINE 免費額度目前餘裕僅 1.5 倍（見 ADR-001），會立即被打爆
+ *
+ * 正確流程：先從 GAS 編輯器匯出線上實際運行的原始碼，與本檔逐項 diff，
+ * 用線上版本覆蓋本檔，而不是把本檔貼上去。在完成這個比對之前，
+ * 本檔僅供閱讀 / 版本追蹤參考，不得部署。
+ */
+
+/**
  * trigger.gs — GAS 定時觸發器（repository_dispatch 為唯一正式入口，見 README「觸發架構」）。
  *
  * 部署方式（本檔僅為版控副本，不會自動同步到 GAS）：
